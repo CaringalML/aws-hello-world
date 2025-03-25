@@ -1,9 +1,8 @@
-name: Sync Files to S3
+name: Deploy to EC2
 
 on:
   push:
     branches: [ main ]
-  # Allow manual triggering
   workflow_dispatch:
 
 jobs:
@@ -21,13 +20,31 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ap-southeast-2  # Change to your region if needed
         
-    - name: Sync files to S3
+    - name: Sync to S3 with delete flag
       run: |
-        aws s3 sync . s3://caringaldevops/ec2-deployments/ --exclude ".git/*" --exclude ".github/*"
+        # Sync the current directory to S3 and delete any files that no longer exist
+        aws s3 sync . s3://caringaldevops/ec2-deployments/ --delete --exclude ".git/*" --exclude ".github/*"
         
-    - name: Deployment summary
+    - name: Find EC2 instances and deploy with SSM
       run: |
-        echo "Successfully synced files to S3 bucket"
-        echo "Bucket: caringaldevops"
-        echo "Path: ec2-deployments/"
-        echo "Deployment time: $(date)"
+        # Find all running instances with app tag
+        INSTANCE_IDS=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=app-instance" "Name=instance-state-name,Values=running" \
+          --query "Reservations[].Instances[].InstanceId" \
+          --output text)
+        
+        if [ -z "$INSTANCE_IDS" ]; then
+          echo "No running instances found with tag app-instance"
+          exit 1
+        fi
+        
+        echo "Deploying to instances: $INSTANCE_IDS"
+        
+        # Run SSM command to update the instances
+        aws ssm send-command \
+          --document-name "app-deploy-index-html" \
+          --targets "Key=instanceids,Values=$INSTANCE_IDS" \
+          --comment "Deploy index.html from GitHub Actions $(date)" \
+          --output text
+        
+        echo "Deployment command sent to all instances"
