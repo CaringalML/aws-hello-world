@@ -18,11 +18,10 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ap-southeast-2  # Change to your region if needed
+        aws-region: ap-southeast-2
         
     - name: Sync to S3 with delete flag
       run: |
-        # Sync the current directory to S3 and delete any files that no longer exist
         aws s3 sync . s3://caringaldevops/ec2-deployments/ --delete --exclude ".git/*" --exclude ".github/*"
         
     - name: Find EC2 instances and deploy with SSM
@@ -40,11 +39,13 @@ jobs:
         
         echo "Deploying to instances: $INSTANCE_IDS"
         
+        # Convert space-separated instance IDs to comma-separated for SSM
+        COMMA_SEPARATED_INSTANCES=$(echo $INSTANCE_IDS | tr ' ' ',')
+        
         # Run SSM command to update the instances
         aws ssm send-command \
           --document-name "app-deploy-index-html" \
-          --targets "Key=instanceids,Values=$INSTANCE_IDS" \
-          --comment "Deploy index.html from GitHub Actions $(date)" \
-          --output text
+          --targets "Key=instanceids,Values=$COMMA_SEPARATED_INSTANCES" \
+          --comment "Deploy index.html from GitHub Actions $(date)"
         
         echo "Deployment command sent to all instances"
