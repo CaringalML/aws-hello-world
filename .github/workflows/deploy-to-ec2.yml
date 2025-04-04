@@ -73,6 +73,11 @@ jobs:
         with:
           terraform_version: 1.5.0
       
+      - name: Set permissions for Terraform providers
+        run: |
+          mkdir -p .terraform/providers/
+          chmod -R 755 .terraform/providers/
+          
       - name: Terraform Apply
         run: |
           terraform init
