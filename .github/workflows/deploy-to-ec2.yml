@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  BUCKET_NAME: caringalml-tf-artifacts-${{ github.run_id }}
+  BUCKET_NAME: caringaldevopstfartifacts
 
 jobs:
   terraform-with-s3:
