@@ -19,9 +19,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
       
       - name: Check if S3 bucket exists
@@ -40,10 +41,9 @@ jobs:
         if: steps.check-bucket.outputs.bucket_exists == 'false'
         run: |
           echo "Creating S3 bucket: terraform-artifacts"
-          aws s3api create-bucket \
-            --bucket terraform-artifacts \
-            --region ${{ secrets.AWS_REGION }} \
-            $([[ "${{ secrets.AWS_REGION }}" != "us-east-1" ]] && echo "--create-bucket-configuration LocationConstraint=${{ secrets.AWS_REGION }}")
+          # Create the bucket - simpler approach
+          aws s3api create-bucket --bucket terraform-artifacts --region ${{ secrets.AWS_REGION }}
+
           
           # No versioning as requested
           
