@@ -64,7 +64,7 @@ variable "environment" {
 variable "aws_region" {
   description = "AWS region where resources will be created"
   type        = string
-  default     = "us-east-1"
+  default     = "ap-southeast-2"
 }
 
 # Output the security group ID for reference by other resources
