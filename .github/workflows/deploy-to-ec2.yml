@@ -1,85 +1,93 @@
-name: Terraform S3 Workflow
+# Enable encryption on the bucket after creating it
+aws s3api put-bucket-encryption \
+--bucket ${{ env.BUCKET_NAME }} \
+--server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+
+# Block public access
+aws s3api put-public-access-block \
+--bucket ${{ env.BUCKET_NAME }} \
+--public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"name: Terraform S3 Workflow
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+push:
+branches: [ main ]
+pull_request:
+branches: [ main ]
+workflow_dispatch:
 
 env:
-  BUCKET_NAME: caringaldevopstfartifacts
+BUCKET_NAME: caringaldevopstfartifacts-123456
 
 jobs:
-  terraform-with-s3:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+terraform-with-s3:
+runs-on: ubuntu-latest
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      
-      - name: Check if S3 bucket exists
-        id: check-bucket
-        run: |
-          if aws s3api head-bucket --bucket ${{ env.BUCKET_NAME }} 2>/dev/null; then
-            echo "Bucket exists - this is a subsequent run"
-            echo "bucket_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Bucket does not exist - this is the initial run"
-            echo "bucket_exists=false" >> $GITHUB_OUTPUT
-          fi
-      
-      # For initial run: Create bucket first
-      - name: Create S3 bucket (Initial Run)
-        if: steps.check-bucket.outputs.bucket_exists == 'false'
-        run: |
-          echo "Creating S3 bucket: terraform-artifacts"
-          # Create the bucket - with proper region handling
-          if [ "${{ secrets.AWS_REGION }}" = "us-east-1" ]; then
-            aws s3api create-bucket --bucket terraform-artifacts --region us-east-1
-          else
-            aws s3api create-bucket --bucket terraform-artifacts --region ${{ secrets.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ secrets.AWS_REGION }}
-          fi
+steps:
+- name: Checkout repository
+uses: actions/checkout@v4
 
-          
-          # No versioning as requested
-          
-          # Enable encryption on the bucket
-          aws s3api put-bucket-encryption \
-            --bucket terraform-artifacts \
-            --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
-          
-          # Block public access
-          aws s3api put-public-access-block \
-            --bucket terraform-artifacts \
-            --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-      
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
-      
-      # For subsequent runs: Sync first
-      - name: Sync from S3 first (Subsequent Runs)
-        if: steps.check-bucket.outputs.bucket_exists == 'true'
-        run: |
-          echo "Syncing Terraform artifacts from S3 bucket first"
-          aws s3 sync s3://terraform-artifacts .
-      
-      - name: Terraform Apply
-        run: |
-          terraform init
-          terraform apply --auto-approve
-      
-      # Always sync back to S3 after terraform apply
-      - name: Sync Terraform artifacts to S3
-        run: |
-          echo "Syncing Terraform artifacts to S3 bucket"
-          aws s3 sync . s3://terraform-artifacts --delete
+- name: Configure AWS credentials
+uses: aws-actions/configure-aws-credentials@v2
+with:
+aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+aws-region: ${{ secrets.AWS_REGION }}
+
+- name: Check if S3 bucket exists
+id: check-bucket
+run: |
+if aws s3api head-bucket --bucket ${{ env.BUCKET_NAME }} 2>/dev/null; then
+echo "Bucket exists - this is a subsequent run"
+echo "bucket_exists=true" >> $GITHUB_OUTPUT
+else
+echo "Bucket does not exist - this is the initial run"
+echo "bucket_exists=false" >> $GITHUB_OUTPUT
+fi
+
+# For initial run: Create bucket first
+- name: Create S3 bucket (Initial Run)
+if: steps.check-bucket.outputs.bucket_exists == 'false'
+run: |
+echo "Creating S3 bucket: terraform-artifacts"
+# Create the bucket - with proper region handling
+if [ "${{ secrets.AWS_REGION }}" = "us-east-1" ]; then
+aws s3api create-bucket --bucket terraform-artifacts --region us-east-1
+else
+aws s3api create-bucket --bucket terraform-artifacts --region ${{ secrets.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ secrets.AWS_REGION }}
+fi
+
+
+# No versioning as requested
+
+# Enable encryption on the bucket
+aws s3api put-bucket-encryption \
+--bucket terraform-artifacts \
+--server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+
+# Block public access
+aws s3api put-public-access-block \
+--bucket terraform-artifacts \
+--public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+- name: Set up Terraform
+uses: hashicorp/setup-terraform@v3
+with:
+terraform_version: 1.5.0
+
+# For subsequent runs: Sync first
+- name: Sync from S3 first (Subsequent Runs)
+if: steps.check-bucket.outputs.bucket_exists == 'true'
+run: |
+echo "Syncing Terraform artifacts from S3 bucket first"
+aws s3 sync s3://terraform-artifacts .
+
+- name: Terraform Apply
+run: |
+terraform init
+terraform apply --auto-approve
+
+# Always sync back to S3 after terraform apply
+- name: Sync Terraform artifacts to S3
+run: |
+echo "Syncing Terraform artifacts to S3 bucket"
+aws s3 sync . s3://terraform-artifacts --delete
