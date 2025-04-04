@@ -7,12 +7,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  BUCKET_NAME: caringalml-terraform-artifacts
+
 jobs:
   terraform-with-s3:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     
     steps:
       - name: Checkout repository
@@ -28,7 +28,7 @@ jobs:
       - name: Check if S3 bucket exists
         id: check-bucket
         run: |
-          if aws s3api head-bucket --bucket terraform-artifacts 2>/dev/null; then
+          if aws s3api head-bucket --bucket ${{ env.BUCKET_NAME }} 2>/dev/null; then
             echo "Bucket exists - this is a subsequent run"
             echo "bucket_exists=true" >> $GITHUB_OUTPUT
           else
