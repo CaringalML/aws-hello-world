@@ -41,8 +41,12 @@ jobs:
         if: steps.check-bucket.outputs.bucket_exists == 'false'
         run: |
           echo "Creating S3 bucket: terraform-artifacts"
-          # Create the bucket - simpler approach
-          aws s3api create-bucket --bucket terraform-artifacts --region ${{ secrets.AWS_REGION }}
+          # Create the bucket - with proper region handling
+          if [ "${{ secrets.AWS_REGION }}" = "us-east-1" ]; then
+            aws s3api create-bucket --bucket terraform-artifacts --region us-east-1
+          else
+            aws s3api create-bucket --bucket terraform-artifacts --region ${{ secrets.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ secrets.AWS_REGION }}
+          fi
 
           
           # No versioning as requested
